@@ -43,3 +43,9 @@ class Datagram(object):
     # Mutable class, no hash
     #def __hash__(self):
     #    return hash((self.payload, self.src, self.dst))
+
+    def __len__(self):
+        return len(self.payload)
+
+    def __getitem__(self, key):
+        return self.payload[key]
