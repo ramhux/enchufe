@@ -49,3 +49,7 @@ class Datagram(object):
 
     def __getitem__(self, key):
         return self.payload[key]
+
+    def response(self, data):
+        datagram = Datagram(data, src=self.dst, dst=self.src)
+        return datagram
