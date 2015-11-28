@@ -1,6 +1,8 @@
 # enchufe.py
 # High-level socket API
 
+import socket
+
 class Datagram(object):
     """UDP Datagram
 
@@ -52,4 +54,34 @@ class Datagram(object):
 
     def response(self, data):
         datagram = Datagram(data, src=self.dst, dst=self.src)
+        return datagram
+
+
+class UDPSocket(object):
+    """Basic UDP socket"""
+
+    MAXBYTES = 0xFFFF
+
+    def __init__(self, local=None, remote=None):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        if local is not None:
+            self.sock.bind(local)
+        if remote is not None:
+            self.sock.connect(remote)
+            self.connected = True
+        else:
+            self.connected = False
+
+    def send(self, datagram):
+        if self.connected:
+            pass
+        else:
+            self.sock.sendto(datagram.payload, datagram.dst)
+
+    def receive(self):
+        if self.connected:
+            datagram = Datagram()
+        else:
+            data, addr = self.sock.recvfrom(self.MAXBYTES)
+            datagram = Datagram(data, src=addr, dst=self.sock.getsockname())
         return datagram
