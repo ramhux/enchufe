@@ -12,6 +12,8 @@ class Datagram(object):
     * dst: Destination (address, port) pair
     """
 
+    MAXBYTES = 0xFFFF
+
     def __init__(self, *args, **kwargs):
         self.src = kwargs.pop('src', None)
         self.dst = kwargs.pop('dst', None)
@@ -60,8 +62,6 @@ class Datagram(object):
 class UDPSocket(object):
     """Basic UDP socket"""
 
-    MAXBYTES = 0xFFFF
-
     def __init__(self, local=None, remote=None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if local is not None:
@@ -82,6 +82,6 @@ class UDPSocket(object):
         if self.connected:
             datagram = Datagram()
         else:
-            data, addr = self.sock.recvfrom(self.MAXBYTES)
+            data, addr = self.sock.recvfrom(Datagram.MAXBYTES)
             datagram = Datagram(data, src=addr, dst=self.sock.getsockname())
         return datagram
