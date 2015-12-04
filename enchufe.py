@@ -74,14 +74,15 @@ class UDP(object):
 
     def send(self, datagram):
         if self.connected:
-            pass
+            self.sock.send(datagram.payload)
         else:
             self.sock.sendto(datagram.payload, datagram.dst)
 
     def receive(self):
+        dst = self.sock.getsockname()
         if self.connected:
-            datagram = Datagram()
+            src = self.sock.getpeername()
+            data = self.sock.recv(Datagram.MAXBYTES)
         else:
-            data, addr = self.sock.recvfrom(Datagram.MAXBYTES)
-            datagram = Datagram(data, src=addr, dst=self.sock.getsockname())
-        return datagram
+            data, src = self.sock.recvfrom(Datagram.MAXBYTES)
+        return Datagram(data, src=src, dst=dst)
