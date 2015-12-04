@@ -59,15 +59,15 @@ class Datagram(object):
         return datagram
 
 
-class UDPSocket(object):
+class UDP(object):
     """Basic UDP socket"""
 
-    def __init__(self, local=None, remote=None):
+    def __init__(self, bind=None, connect=None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        if local is not None:
-            self.sock.bind(local)
-        if remote is not None:
-            self.sock.connect(remote)
+        if bind is not None:
+            self.sock.bind(bind)
+        if connect is not None:
+            self.sock.connect(connect)
             self.connected = True
         else:
             self.connected = False
