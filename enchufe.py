@@ -156,6 +156,12 @@ class UDP(object):
         else:
             self.connected = False
 
+    def local_address(self):
+        return Address(self.sock.getsockname())
+
+    def remote_address(self):
+        return Address(self.sock.getpeername())
+
     def send(self, datagram):
         if self.connected:
             self.sock.send(datagram.payload)
@@ -163,10 +169,16 @@ class UDP(object):
             self.sock.sendto(datagram.payload, tuple(datagram.dst))
 
     def receive(self):
-        dst = self.sock.getsockname()
+        dst = self.local_address()
         if self.connected:
-            src = self.sock.getpeername()
+            src = self.remote_address()
             data = self.sock.recv(Datagram.MAXBYTES)
         else:
             data, src = self.sock.recvfrom(Datagram.MAXBYTES)
         return Datagram(data, src=src, dst=dst)
+
+def udp_server(addr, port):
+    return UDP(bind=(addr, port))
+
+def udp_client(addr, port):
+    return UDP(connect=(addr, port))
