@@ -6,6 +6,13 @@ import socket
 class Address(object):
     """IPv4 Address and port"""
     def __init__(self, addr, port=None):
+        """Args:
+        - addr is a IPv4 or a host name string
+        - port is an integer value between 0 and 65535
+
+        As an alternative, you can use a sequence (tuple, list, ...) with the
+        two values defined above and pass it as 'addr'
+        """
         if port is None and len(addr) == 2:
             hostname = addr[0]
             port = addr[1]
