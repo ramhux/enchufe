@@ -7,22 +7,33 @@ class Address(object):
     """IPv4 Address and port"""
     def __init__(self, addr, port=None):
         if port is None and len(addr) == 2:
-            t = tuple(addr)
+            hostname = addr[0]
+            port = addr[1]
         elif port is not None:
-            t = (addr, port)
+            hostname = addr
         else:
             raise TypeError("Unsupported addr: {}".format(addr))
 
-        if not 0 <= t[1] <= 0xFFFF:
+        ip = socket.gethostbyname(hostname)
+        if ip != hostname:
+            # hostname is not an IP address, store it
+            super().__setattr__('hostname', hostname)
+
+        # Check port range
+        if not 0 <= port <= 0xFFFF:
             raise ValueError("Port out of range")
 
-        super().__setattr__('tuple', t)
+        super().__setattr__('tuple', (ip, port))
 
     def __repr__(self):
         return repr(self.tuple)
 
     def __str__(self):
-        return '{}:{}'.format(self.ip, self.port)
+        if 'hostname' in self.__dict__:
+            addr = self.hostname
+        else:
+            addr = self.ip
+        return '{}:{}'.format(addr, self.port)
 
     def __eq__(self, other):
         if isinstance(other, Address):
@@ -36,8 +47,15 @@ class Address(object):
     def __getattr__(self, name):
         if name == 'ip':
             return self.tuple[0]
+
         if name == 'port':
             return self.tuple[1]
+
+        if name == 'hostname':
+            hostname = socket.gethostbyaddr(self.ip)[0]
+            super().__setattr__('hostname', hostname)
+            return hostname
+
         errmsg = "'Address' object has no attribute '{}'".format(name)
         raise AttributeError(errmsg)
 
