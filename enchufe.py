@@ -12,6 +12,10 @@ class Address(object):
             t = (addr, port)
         else:
             raise TypeError("Unsupported addr: {}".format(addr))
+
+        if not 0 <= t[1] <= 0xFFFF:
+            raise ValueError("Port out of range")
+
         super().__setattr__('tuple', t)
 
     def __repr__(self):
