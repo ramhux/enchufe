@@ -3,6 +3,56 @@
 
 import socket
 
+class Address(object):
+    """IPv4 Address and port"""
+    def __init__(self, addr, port=None):
+        if port is None and len(addr) == 2:
+            t = tuple(addr)
+        elif port is not None:
+            t = (addr, port)
+        else:
+            raise TypeError("Unsupported addr: {}".format(addr))
+        super().__setattr__('tuple', t)
+
+    def __repr__(self):
+        return repr(self.tuple)
+
+    def __str__(self):
+        return '{}:{}'.format(self.ip, self.port)
+
+    def __eq__(self, other):
+        if isinstance(other, Address):
+            return self.tuple == other.tuple
+        else:
+            return NotImplemented
+
+    def __hash__(self):
+        return hash((Address, self.tuple))
+
+    def __getattr__(self, name):
+        if name == 'ip':
+            return self.tuple[0]
+        if name == 'port':
+            return self.tuple[1]
+        errmsg = "'Address' object has no attribute '{}'".format(name)
+        raise AttributeError(errmsg)
+
+    def __setattr__(self, name, value):
+        self._error()
+
+    def __delattr__(self, name):
+        self._error()
+
+    def __len__(self):
+        return 2
+
+    def __getitem__(self, key):
+        return self.tuple[key]
+
+    def _error(self):
+        raise RuntimeError("Read-only class: Address")
+
+
 class Datagram(object):
     """UDP Datagram
 
