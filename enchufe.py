@@ -94,10 +94,15 @@ class Datagram(object):
     MAXBYTES = 0xFFFF
 
     def __init__(self, *args, **kwargs):
-        self.src = kwargs.pop('src', None)
-        self.dst = kwargs.pop('dst', None)
+        src = kwargs.pop('src', None)
+        dst = kwargs.pop('dst', None)
+
+        self.src = None if src is None else Address(src)
+        self.dst = None if dst is None else Address(dst)
+
         self.payload = bytes(*args, **kwargs)
-        #FIXME check values
+        if not 0 <= len(self.payload) <= self.MAXBYTES:
+            raise ValueError('Too much data, max size {}'.format(self.MAXBYTES))
 
     def __repr__(self):
         r = 'Datagram({!r}'.format(self.payload)
@@ -144,9 +149,9 @@ class UDP(object):
     def __init__(self, bind=None, connect=None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if bind is not None:
-            self.sock.bind(bind)
+            self.sock.bind(tuple(bind))
         if connect is not None:
-            self.sock.connect(connect)
+            self.sock.connect(tuple(connect))
             self.connected = True
         else:
             self.connected = False
@@ -155,7 +160,7 @@ class UDP(object):
         if self.connected:
             self.sock.send(datagram.payload)
         else:
-            self.sock.sendto(datagram.payload, datagram.dst)
+            self.sock.sendto(datagram.payload, tuple(datagram.dst))
 
     def receive(self):
         dst = self.sock.getsockname()
