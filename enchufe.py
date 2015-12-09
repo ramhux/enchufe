@@ -9,7 +9,7 @@ def _readonly_error(obj):
 
 def _attribute_error(obj, name):
     msg = "'{}' object has no attribute '{}'"
-    msg = msg.format(self.__class__.__name__, name)
+    msg = msg.format(obj.__class__.__name__, name)
     raise AttributeError(msg)
 
 class Address(object):
