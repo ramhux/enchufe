@@ -3,6 +3,15 @@
 
 import socket
 
+def _readonly_error(obj):
+    msg = 'Read-only class: {}'.format(obj.__class__.__name__)
+    raise RuntimeError(msg)
+
+def _attribute_error(obj, name):
+    msg = "'{}' object has no attribute '{}'"
+    msg = msg.format(self.__class__.__name__, name)
+    raise AttributeError(msg)
+
 class Address(object):
     """IPv4 Address and port"""
     def __init__(self, addr, port=None):
@@ -63,23 +72,19 @@ class Address(object):
             super().__setattr__('hostname', hostname)
             return hostname
 
-        errmsg = "'Address' object has no attribute '{}'".format(name)
-        raise AttributeError(errmsg)
+        _attribute_error(self, name)
 
     def __setattr__(self, name, value):
-        self._error()
+        _readonly_error(self)
 
     def __delattr__(self, name):
-        self._error()
+        _readonly_error(self)
 
     def __len__(self):
-        return 2
+        return len(self.tuple)
 
     def __getitem__(self, key):
         return self.tuple[key]
-
-    def _error(self):
-        raise RuntimeError("Read-only class: Address")
 
 
 class Datagram(object):
@@ -128,9 +133,14 @@ class Datagram(object):
         else:
             return NotImplemented
 
-    # Mutable class, no hash
-    #def __hash__(self):
-    #    return hash((self.payload, self.src, self.dst))
+    def __hash__(self):
+        return hash((self.payload, self.src, self.dst))
+
+    def __setattr__(self, name, value):
+        _readonly_error(self)
+
+    def __delattr__(self, name):
+        _readonly_error(self)
 
     def __len__(self):
         return len(self.payload)
