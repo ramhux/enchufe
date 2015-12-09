@@ -166,11 +166,18 @@ class UDP(object):
         else:
             self.connected = False
 
-    def local_address(self):
-        return Address(self.sock.getsockname())
+    def __getattr__(self, name):
+        if name == 'local':
+            local = Address(self.sock.getsockname())
+            self.local = local
+            return local
 
-    def remote_address(self):
-        return Address(self.sock.getpeername())
+        if name == 'remote':
+            remote = Address(self.sock.getpeername())
+            self.remote = remote
+            return local
+
+        _attribute_error(self, name)
 
     def send(self, datagram):
         if self.connected:
