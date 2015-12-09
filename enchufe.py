@@ -178,7 +178,7 @@ class UDP(object):
         if name == 'remote':
             remote = Address(self.sock.getpeername())
             self.remote = remote
-            return local
+            return remote
 
         _attribute_error(self, name)
 
