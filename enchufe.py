@@ -102,10 +102,13 @@ class Datagram(object):
         src = kwargs.pop('src', None)
         dst = kwargs.pop('dst', None)
 
-        self.src = None if src is None else Address(src)
-        self.dst = None if dst is None else Address(dst)
+        src = None if src is None else Address(src)
+        dst = None if dst is None else Address(dst)
+        super().__setattr__('src', src)
+        super().__setattr__('dst', dst)
 
-        self.payload = bytes(*args, **kwargs)
+        payload = bytes(*args, **kwargs)
+        super().__setattr__('payload', payload)
         if not 0 <= len(self.payload) <= self.MAXBYTES:
             raise ValueError('Too much data, max size {}'.format(self.MAXBYTES))
 
