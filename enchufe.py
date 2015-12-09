@@ -186,9 +186,9 @@ class UDP(object):
             self.sock.sendto(datagram.payload, tuple(datagram.dst))
 
     def receive(self):
-        dst = self.local_address()
+        dst = self.local
         if self.connected:
-            src = self.remote_address()
+            src = self.remote
             data = self.sock.recv(Datagram.MAXBYTES)
         else:
             data, src = self.sock.recvfrom(Datagram.MAXBYTES)
