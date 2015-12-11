@@ -202,6 +202,13 @@ class UDP(object):
 
         _attribute_error(self, name)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+        return False
+
     def send(self, data):
         """Send data through UDP socket
 
@@ -248,6 +255,10 @@ class UDP(object):
         addr = Address(*args)
         self.sock.connect(tuple(addr))
         self.connected = True
+
+    def close(self):
+        """Close the low-level socket file descriptor"""
+        self.sock.close()
 
 def udp_server(addr, port):
     """Create a new UDP socket bound to address and port"""
