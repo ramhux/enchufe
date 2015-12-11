@@ -2,6 +2,9 @@
 # High-level socket API
 
 import socket
+import datetime
+
+from datetime import datetime, timedelta
 
 def _readonly_error(obj):
     msg = 'Read-only class: {}'.format(obj.__class__.__name__)
@@ -191,6 +194,8 @@ class UDP(object):
             return local
 
         if name == 'remote':
+            if not self.connected:
+                _attribute_error(self, name)
             remote = Address(self.sock.getpeername())
             self.remote = remote
             return remote
@@ -226,6 +231,8 @@ class UDP(object):
             except socket.timeout:
                 return None
         return Datagram(data, src=src, dst=dst)
+
+    #TODO: define a method for retransmission on request-response protocols
 
     def bind(self, *args):
         """Bind to the addres and port sequence"""
