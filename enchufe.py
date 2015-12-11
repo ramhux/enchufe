@@ -161,14 +161,12 @@ class UDP(object):
     """Basic UDP socket"""
 
     def __init__(self, bind=None, connect=None):
+        self .connected = False
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if bind is not None:
-            self.sock.bind(tuple(bind))
+            self.bind(bind)
         if connect is not None:
-            self.sock.connect(tuple(connect))
-            self.connected = True
-        else:
-            self.connected = False
+            self.connect(connect)
 
     def __getattr__(self, name):
         if name == 'local':
@@ -198,6 +196,19 @@ class UDP(object):
         else:
             data, src = self.sock.recvfrom(Datagram.MAXBYTES)
         return Datagram(data, src=src, dst=dst)
+
+    def bind(self, *args):
+        if self.local.port != 0:
+            raise RuntimeError('UDP object already bound to a port')
+        addr = Address(*args)
+        self.sock.bind(tuple(addr))
+
+    def connect(self, *args):
+        if self.connected:
+            raise RuntimeError('UDP object already connected')
+        addr = Address(*args)
+        self.sock.connect(tuple(addr))
+        self.connected = True
 
 def udp_server(addr, port):
     return UDP(bind=(addr, port))
