@@ -182,11 +182,11 @@ class UDP(object):
 
         _attribute_error(self, name)
 
-    def send(self, datagram):
+    def send(self, data):
         if self.connected:
-            self.sock.send(datagram.payload)
+            self.sock.send(bytes(data))
         else:
-            self.sock.sendto(datagram.payload, tuple(datagram.dst))
+            self.sock.sendto(bytes(data), tuple(data.dst))
 
     def receive(self):
         dst = self.local
