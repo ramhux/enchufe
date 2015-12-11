@@ -173,7 +173,8 @@ class UDP(object):
     def __getattr__(self, name):
         if name == 'local':
             local = Address(self.sock.getsockname())
-            self.local = local
+            if local.port != 0: #if bound, save it
+                self.local = local
             return local
 
         if name == 'remote':
