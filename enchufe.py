@@ -152,16 +152,31 @@ class Datagram(object):
         return self.payload[key]
 
     def response(self, *args, **kwargs):
+        """Generates a new Datagram swapping src and dst"""
         kwargs['src'] = self.dst
         kwargs['dst'] = self.src
         return Datagram(*args, **kwargs)
 
 
 class UDP(object):
-    """Basic UDP socket"""
+    """Basic UDP socket
+
+    UDP attributes:
+    timeout -> Timeout for blocking operations
+    local -> Local Address (ip, port)
+    remote -> Remote Address (ip, port)
+    """
+
+    timeout = None
 
     def __init__(self, bind=None, connect=None):
-        self .connected = False
+        """Create a basic UDP socket
+
+        After the UDP socket is created:
+        If bind is not None, bind to the address and port sequence.
+        If connect is not None, connect to the address and port sequence.
+        """
+        self.connected = False
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if bind is not None:
             self.bind(bind)
@@ -183,27 +198,44 @@ class UDP(object):
         _attribute_error(self, name)
 
     def send(self, data):
+        """Send data through UDP socket
+
+        data -> binary data (bytes) or a Datagram if not connected.
+        """
         if self.connected:
             self.sock.send(bytes(data))
         else:
             self.sock.sendto(bytes(data), tuple(data.dst))
 
     def receive(self):
+        """Receive data from the UDP socket
+
+        Returns a Datagram or None if timeout was reached.
+        """
+        self.sock.settimeout(self.timeout)
         dst = self.local
         if self.connected:
             src = self.remote
-            data = self.sock.recv(Datagram.MAXBYTES)
+            try:
+                data = self.sock.recv(Datagram.MAXBYTES)
+            except socket.timeout:
+                return None
         else:
-            data, src = self.sock.recvfrom(Datagram.MAXBYTES)
+            try:
+                data, src = self.sock.recvfrom(Datagram.MAXBYTES)
+            except socket.timeout:
+                return None
         return Datagram(data, src=src, dst=dst)
 
     def bind(self, *args):
+        """Bind to the addres and port sequence"""
         if self.local.port != 0:
             raise RuntimeError('UDP object already bound to a port')
         addr = Address(*args)
         self.sock.bind(tuple(addr))
 
     def connect(self, *args):
+        """Connect to the address and port sequence"""
         if self.connected:
             raise RuntimeError('UDP object already connected')
         addr = Address(*args)
@@ -211,7 +243,9 @@ class UDP(object):
         self.connected = True
 
 def udp_server(addr, port):
+    """Create a new UDP socket bound to address and port"""
     return UDP(bind=(addr, port))
 
 def udp_client(addr, port):
+    """Create a new UDP socket connected to address and port"""
     return UDP(connect=(addr, port))
