@@ -172,7 +172,7 @@ class UDP(object):
 
     timeout = None
 
-    def __init__(self, bind=None, connect=None):
+    def __init__(self, bind=None, connect=None, broadcast=False):
         """Create a basic UDP socket
 
         After the UDP socket is created:
@@ -185,6 +185,8 @@ class UDP(object):
             self.bind(bind)
         if connect is not None:
             self.connect(connect)
+        if broadcast:
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
     def __getattr__(self, name):
         if name == 'local':
@@ -212,12 +214,14 @@ class UDP(object):
     def send(self, data):
         """Send data through UDP socket
 
-        data -> binary data (bytes) or a Datagram if not connected.
+        data -> a Datagram. Optionally binary data (bytes) if connected.
         """
-        if self.connected:
+        if hasattr(data, 'dst') and data.dst is not None:
+            self.sock.sendto(bytes(data), tuple(data.dst))
+        elif self.connected:
             self.sock.send(bytes(data))
         else:
-            self.sock.sendto(bytes(data), tuple(data.dst))
+            raise RuntimeError('No dst info to send data')
 
     def receive(self):
         """Receive data from the UDP socket
