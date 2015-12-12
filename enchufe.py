@@ -223,6 +223,13 @@ class UDP(object):
         else:
             raise RuntimeError('No dst info to send data')
 
+    def broadcast(self, data, port=None):
+        """Send data to all computers in the network"""
+        if port is None:
+            port = data.dst.port
+        data = Datagram(data, dst=('<broadcast>', port))
+        self.send(data)
+
     def receive(self):
         """Receive data from the UDP socket
 
