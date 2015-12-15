@@ -89,6 +89,67 @@ class Address(object):
     def __getitem__(self, key):
         return self.tuple[key]
 
+class NetData():
+    """Parse and forge network data"""
+
+    @staticmethod
+    def integer(value, size=0, signed=None):
+        """Convert integer into bytes
+
+        size = 0 --> size is calculated automatically
+        size = X --> X bytes size"""
+        if size < 0:
+            raise ValueError('Invalid size', size)
+        signed = value < 0 if signed is None else signed
+        if size == 0:
+            size = value.bit_length()
+            size += 1 if signed else 0
+            size = ((size - 1) // 8) + 1
+        #print(value, size, signed)
+        return value.to_bytes(size, 'big', signed=signed)
+
+    @staticmethod
+    def string(value, size=0, encoding="utf-8"):
+        """Convert string to bytes
+
+        size = -X --> X bytes used as integer header for size
+        size = 0 --> 0x00 added to the end of the bytes
+        size = X --> first X bytes only, filled with 0x00 if needed
+        """
+        bstr = value.encode(encoding)
+        length = len(bstr)
+        if size < 0:
+            size = -size
+            bstr = NetData.integer(length, size) + bstr
+        elif size == 0:
+            bstr = bstr + b'\x00'
+        elif size > 0:
+            bstr = bstr + (size - length) * b'\x00' if size > length else bstr[:size]
+        return bstr
+
+    @staticmethod
+    def _item(x):
+        size = 0
+        if isinstance(x, int):
+            return NetData.integer(x)
+        if isinstance(x, str):
+            return NetData.string(x)
+        if isinstance(x[0], int):
+            return NetData.integer(*x)
+        if isinstance(x[0], str):
+            return NetData.string(*x)
+
+    @staticmethod
+    def forge(*args, seq=None):
+        """Forge bytes from integers and strings"""
+        bstr = b''
+        for x in args:
+            bstr += NetData._item(x)
+        if seq is not None:
+            for x in seq:
+                bstr += NetData._item(x)
+        return bstr
+
 
 class Datagram(object):
     """UDP Datagram
