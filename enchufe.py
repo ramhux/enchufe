@@ -15,6 +15,115 @@ def _attribute_error(obj, name):
     msg = msg.format(obj.__class__.__name__, name)
     raise AttributeError(msg)
 
+
+class NetData(bytearray):
+    """Parse and forge network data"""
+
+    ##### Static Methods #####
+    @staticmethod
+    def int(value, size=None, signed=None):
+        """Convert integer into bytes
+
+        size = 0 or None --> size is calculated automatically
+        size = X --> X bytes size"""
+        size = 0 if size is None else size
+        signed = value < 0 if signed is None else signed
+        if size < 0:
+            raise ValueError('Invalid size', size)
+        if size == 0:
+            size = value.bit_length()
+            size += 1 if signed else 0
+            size = ((size - 1) // 8) + 1
+        #print(value, size, signed)
+        return value.to_bytes(size, 'big', signed=signed)
+
+    @staticmethod
+    def str(value, size=None, encoding=None):
+        """Convert string to bytes
+
+        size = -X --> X bytes used as integer header for size
+        size = 0 --> 0x00 added to the end of the bytes
+        size = X --> first X bytes only, filled with 0x00 if needed
+        """
+        bstr = value.encode() if encoding is None else value.encode(encoding)
+        if size is None:
+            return bstr
+        length = len(bstr)
+        if size < 0:
+            size = -size
+            bstr = NetData.integer(length, size) + bstr
+        elif size == 0:
+            bstr = bstr + b'\x00'
+        elif size > 0:
+            bstr = bstr + (size - length) * b'\x00' if size > length else bstr[:size]
+        return bstr
+    ##### End of Static Methods #####
+
+    def __init__(self, *args, **kwargs):
+        self.int_size = kwargs.pop('int_size', None)
+        self.int_signed = kwargs.pop('int_signed', None)
+        self.str_size = kwargs.pop('str_size', None)
+        self.str_encoding = kwargs.pop('str_encoding', None)
+        if len(kwargs) > 0:
+            msg = "'{}' is an invalid keyword argument"
+            raise TypeError(msg.format(kwargs.popitem()[0]))
+        super().__init__(*args)
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, bytes(self))
+
+    __str__ = __repr__
+
+    def to_bytes(self, x):
+        # x is binary data
+        if isinstance(x, (bytes, bytearray, memoryview)):
+            return bytes(x)
+
+        # Just a value, use defaults
+        elif isinstance(x, int):
+            return self.int(x, self.int_size, self.int_signed)
+        elif isinstance(x, str):
+            return self.str(x, self.str_size, self.str_encoding)
+
+        # x is a dict as {'value': x, 'xxx_size': y, ...}
+        elif isinstance(x, dict):
+            if isinstance(x['value'], int):
+                x.setdefault('size', self.int_size)
+                x.setdefault('signed', self.int_signed)
+                return self.int(**x)
+            if isinstance(x['value'], str):
+                x.setdefault('size', self.str_size)
+                x.setdefault('encoding', self.str_encoding)
+                return self.str(**x)
+
+        else: # a sequence (positional arguments)
+            x = list(x)
+            if isinstance(x[0], int):
+                if len(x) < 2: x.append(self.int_size)
+                if len(x) < 3: x.append(self.int_signed)
+                return self.int(*x)
+            if isinstance(x[0], str):
+                if len(x) < 2: x.append(self.str_size)
+                if len(x) < 3: x.append(self.str_encoding)
+                return self.str(*x)
+
+        # bad luck
+        raise ValueError('Unexpected object', x)
+
+    def append(self, item):
+        super().extend(self.to_bytes(item))
+
+    def extend(self, item_list):
+        for item in item_list:
+            self.append(item)
+
+    def insert(self, index, item):
+        pass #TODO
+
+    def pop(self, index=0):
+        pass #TODO
+
+
 class Address(object):
     """IPv4 Address and port"""
     def __init__(self, addr, port=None):
@@ -88,67 +197,6 @@ class Address(object):
 
     def __getitem__(self, key):
         return self.tuple[key]
-
-class NetData():
-    """Parse and forge network data"""
-
-    @staticmethod
-    def integer(value, size=0, signed=None):
-        """Convert integer into bytes
-
-        size = 0 --> size is calculated automatically
-        size = X --> X bytes size"""
-        if size < 0:
-            raise ValueError('Invalid size', size)
-        signed = value < 0 if signed is None else signed
-        if size == 0:
-            size = value.bit_length()
-            size += 1 if signed else 0
-            size = ((size - 1) // 8) + 1
-        #print(value, size, signed)
-        return value.to_bytes(size, 'big', signed=signed)
-
-    @staticmethod
-    def string(value, size=0, encoding="utf-8"):
-        """Convert string to bytes
-
-        size = -X --> X bytes used as integer header for size
-        size = 0 --> 0x00 added to the end of the bytes
-        size = X --> first X bytes only, filled with 0x00 if needed
-        """
-        bstr = value.encode(encoding)
-        length = len(bstr)
-        if size < 0:
-            size = -size
-            bstr = NetData.integer(length, size) + bstr
-        elif size == 0:
-            bstr = bstr + b'\x00'
-        elif size > 0:
-            bstr = bstr + (size - length) * b'\x00' if size > length else bstr[:size]
-        return bstr
-
-    @staticmethod
-    def _item(x):
-        size = 0
-        if isinstance(x, int):
-            return NetData.integer(x)
-        if isinstance(x, str):
-            return NetData.string(x)
-        if isinstance(x[0], int):
-            return NetData.integer(*x)
-        if isinstance(x[0], str):
-            return NetData.string(*x)
-
-    @staticmethod
-    def forge(*args, seq=None):
-        """Forge bytes from integers and strings"""
-        bstr = b''
-        for x in args:
-            bstr += NetData._item(x)
-        if seq is not None:
-            for x in seq:
-                bstr += NetData._item(x)
-        return bstr
 
 
 class Datagram(object):
