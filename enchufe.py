@@ -92,13 +92,20 @@ class NetBuffer(bytearray):
             data = data[:size]
             value = decode(data, encoding)
         return value, size
+
+    @staticmethod
+    def from_bytes_to_bytes(data, size=None):
+        if size is None:
+            size = len(data)
+        return bytes(data[:size]), size
     ##### End of Static Methods #####
 
     def __init__(self, *args, **kwargs):
         self.int_size = kwargs.pop('int_size', None)
         self.int_signed = kwargs.pop('int_signed', None)
-        self.str_size = kwargs.pop('str_size', None)
+        self.str_size = kwargs.pop('str_size', 0)
         self.str_encoding = kwargs.pop('str_encoding', None)
+        self.bytes_size = kwargs.pop('bytes_size', 512)
         if len(kwargs) > 0:
             msg = "'{}' is an invalid keyword argument"
             raise TypeError(msg.format(kwargs.popitem()[0]))
@@ -148,10 +155,35 @@ class NetBuffer(bytearray):
                 return self.from_str(*item)
 
         # bad luck
-        raise ValueError('Unexpected object', x)
+        raise ValueError('Unexpected object', item)
+
+    def from_bytes(self, item_type):
+        """Return an item and byte size from bytes"""
+        t = item_type
+        if t in [bytes, int, str]:
+            t = {'type': t}
+
+        if isinstance(t, dict):
+            if t['type'] is bytes:
+                t.setdefault('size', self.bytes_size)
+                return self.from_bytes_to_bytes(**t)
+            if t['type'] is int:
+                pass
+            if t['type'] is str:
+                pass
+        else:
+            t = list(t)
+            if t[0] is bytes:
+                pass
+            if t[0] is int:
+                pass
+            if t[0] is str:
+                pass
+        raise ValueError('Unexpected object', t)
+
 
     def append(self, item):
-        """Append a single item (int or str) to the end
+        """Append a single item to the end of the buffer
 
         The item is used as the argument of to_bytes()"""
         super().extend(self.to_bytes(item))
