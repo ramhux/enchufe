@@ -46,7 +46,7 @@ class NetBuffer(bytearray):
         Return the integer value and number of bytes used"""
         size = 1 if size is None else size
         signed = False if signed is None else signed
-        value = int.from_bytes(data, 'big', signed)
+        value = int.from_bytes(data[:size], 'big', signed=signed)
         return value, size
 
     @staticmethod
@@ -67,8 +67,10 @@ class NetBuffer(bytearray):
         elif size == 0:
             bstr = bstr + NetBuffer._encode('\x00', encoding)
         elif size > 0:
-            bstr = bstr[:size] if length > size # trim to size
-                   else bstr + (size - length) * b'\x00' # fill with 0x00
+            if size > length:
+                bsrt += b'\x00' * (size - length)
+            else:
+                bstr = bstr[:size]
         return bstr
 
     @staticmethod
@@ -79,7 +81,7 @@ class NetBuffer(bytearray):
         if size < 0:
             strsize, size = NetBuffer.to_int(data, -size)
             data = data[size:size+strsize]
-            value = decode(data, encoding)
+            value = NetBuffer._decode(data, encoding)
             size += strsize
         elif size == 0:
             NUL = NetBuffer._encode('\x00', encoding)
