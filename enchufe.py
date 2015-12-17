@@ -109,7 +109,7 @@ class NetBuffer(bytearray):
             if isinstance(item[0], str):
                 if len(item) < 2: item.append(self.str_size)
                 if len(item) < 3: item.append(self.str_encoding)
-                return self.str(*item)
+                return self.from_str(*item)
 
         # bad luck
         raise ValueError('Unexpected object', x)
