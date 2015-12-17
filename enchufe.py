@@ -16,13 +16,13 @@ def _attribute_error(obj, name):
     raise AttributeError(msg)
 
 
-class NetData(bytearray):
+class NetBuffer(bytearray):
     """Parse and forge network data"""
 
     ##### Static Methods #####
     @staticmethod
-    def int(value, size=None, signed=None):
-        """Convert integer into bytes
+    def from_int(value, size=None, signed=None):
+        """Convert integer to bytes
 
         size = 0 or None --> size is calculated automatically
         size = X --> X bytes size"""
@@ -34,11 +34,10 @@ class NetData(bytearray):
             size = value.bit_length()
             size += 1 if signed else 0
             size = ((size - 1) // 8) + 1
-        #print(value, size, signed)
         return value.to_bytes(size, 'big', signed=signed)
 
     @staticmethod
-    def str(value, size=None, encoding=None):
+    def from_str(value, size=None, encoding=None):
         """Convert string to bytes
 
         size = -X --> X bytes used as integer header for size
@@ -74,53 +73,71 @@ class NetData(bytearray):
 
     __str__ = __repr__
 
-    def to_bytes(self, x):
+    def to_bytes(self, item):
+        """Return bytes form item
+
+        if item is bytes, bytearray or memoryview, return bytes(x)
+        if item is int or str, convert to bytes using defaults
+        if item is dict, use item values as keyword arguments
+        if item is a sequence, use item values as positional arguments
+        """
         # x is binary data
-        if isinstance(x, (bytes, bytearray, memoryview)):
-            return bytes(x)
+        if isinstance(item, (bytes, bytearray, memoryview)):
+            return bytes(item)
 
         # Just a value, use defaults
-        elif isinstance(x, int):
-            return self.int(x, self.int_size, self.int_signed)
-        elif isinstance(x, str):
-            return self.str(x, self.str_size, self.str_encoding)
+        if isinstance(item, (int, str)):
+            item = {'value': item}
 
         # x is a dict as {'value': x, 'xxx_size': y, ...}
-        elif isinstance(x, dict):
-            if isinstance(x['value'], int):
-                x.setdefault('size', self.int_size)
-                x.setdefault('signed', self.int_signed)
-                return self.int(**x)
-            if isinstance(x['value'], str):
-                x.setdefault('size', self.str_size)
-                x.setdefault('encoding', self.str_encoding)
-                return self.str(**x)
+        if isinstance(item, dict):
+            if isinstance(item['value'], int):
+                item.setdefault('size', self.int_size)
+                item.setdefault('signed', self.int_signed)
+                return self.from_int(**item)
+            if isinstance(item['value'], str):
+                item.setdefault('size', self.str_size)
+                item.setdefault('encoding', self.str_encoding)
+                return self.from_str(**item)
 
         else: # a sequence (positional arguments)
-            x = list(x)
-            if isinstance(x[0], int):
-                if len(x) < 2: x.append(self.int_size)
-                if len(x) < 3: x.append(self.int_signed)
-                return self.int(*x)
-            if isinstance(x[0], str):
-                if len(x) < 2: x.append(self.str_size)
-                if len(x) < 3: x.append(self.str_encoding)
-                return self.str(*x)
+            item = list(item)
+            if isinstance(item[0], int):
+                if len(item) < 2: item.append(self.int_size)
+                if len(item) < 3: item.append(self.int_signed)
+                return self.from_int(*item)
+            if isinstance(item[0], str):
+                if len(item) < 2: item.append(self.str_size)
+                if len(item) < 3: item.append(self.str_encoding)
+                return self.str(*item)
 
         # bad luck
         raise ValueError('Unexpected object', x)
 
     def append(self, item):
+        """Append a single item (int or str) to the end
+
+        The item is used as the argument of to_bytes()"""
         super().extend(self.to_bytes(item))
 
     def extend(self, item_list):
+        """Append all the elements from a sequence to the end
+
+        Every item is used as the argument of to_bytes()"""
         for item in item_list:
             self.append(item)
 
     def insert(self, index, item):
-        pass #TODO
+        """Insert a single item as bytes before the given index"""
+        item = self.to_bytes(item)
+        for index, value in enumerate(item, index):
+            super().insert(index, value)
 
     def pop(self, index=0):
+        """Remove and return an item from the buffer
+
+
+        """
         pass #TODO
 
 
