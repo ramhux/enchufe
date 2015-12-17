@@ -20,6 +20,9 @@ class NetBuffer(bytearray):
     """Parse and forge network data"""
 
     ##### Static Methods #####
+    _encode = lambda s, codec: s.encode() if codec is None else s.encode(codec)
+    _decode = lambda d, codec: d.decode() if codec is None else d.decode(codec)
+
     @staticmethod
     def from_int(value, size=None, signed=None):
         """Convert integer to bytes
@@ -37,25 +40,56 @@ class NetBuffer(bytearray):
         return value.to_bytes(size, 'big', signed=signed)
 
     @staticmethod
+    def to_int(data, size=None, signed=None):
+        """Convert bytes to integer
+
+        Return the integer value and number of bytes used"""
+        size = 1 if size is None else size
+        signed = False if signed is None else signed
+        value = int.from_bytes(data, 'big', signed)
+        return value, size
+
+    @staticmethod
     def from_str(value, size=None, encoding=None):
         """Convert string to bytes
 
         size = -X --> X bytes used as integer header for size
-        size = 0 --> 0x00 added to the end of the bytes
+        size = 0 --> encoded '\x00' added to the end of the bytes after encoding
         size = X --> first X bytes only, filled with 0x00 if needed
         """
-        bstr = value.encode() if encoding is None else value.encode(encoding)
+        bstr = NetBuffer._encode(value, encoding)
         if size is None:
             return bstr
         length = len(bstr)
         if size < 0:
             size = -size
-            bstr = NetData.integer(length, size) + bstr
+            bstr = NetBuffer.from_int(length, size) + bstr
         elif size == 0:
-            bstr = bstr + b'\x00'
+            bstr = bstr + NetBuffer._encode('\x00', encoding)
         elif size > 0:
-            bstr = bstr + (size - length) * b'\x00' if size > length else bstr[:size]
+            bstr = bstr[:size] if length > size # trim to size
+                   else bstr + (size - length) * b'\x00' # fill with 0x00
         return bstr
+
+    @staticmethod
+    def to_str(data, size=None, encoding=None):
+        if size is None:
+            value = NetBuffer._decode(data, encoding)
+            size = len(data)
+        if size < 0:
+            strsize, size = NetBuffer.to_int(data, -size)
+            data = data[size:size+strsize]
+            value = decode(data, encoding)
+            size += strsize
+        elif size == 0:
+            NUL = NetBuffer._encode('\x00', encoding)
+            head, sep, tail = data.partition(NUL)
+            value = NetBuffer._decode(head, encoding)
+            size = len(head) + len(sep)
+        elif size > 0:
+            data = data[:size]
+            value = decode(data, encoding)
+        return value, size
     ##### End of Static Methods #####
 
     def __init__(self, *args, **kwargs):
