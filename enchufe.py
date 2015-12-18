@@ -90,7 +90,7 @@ class NetBuffer(bytearray):
             size = len(head) + len(sep)
         elif size > 0:
             data = data[:size]
-            value = decode(data, encoding)
+            value = NetBuffer._decode(data, encoding)
         return value, size
 
     @staticmethod
@@ -157,28 +157,40 @@ class NetBuffer(bytearray):
         # bad luck
         raise ValueError('Unexpected object', item)
 
-    def from_bytes(self, item_type):
+    def from_bytes(self, item):
         """Return an item and byte size from bytes"""
-        t = item_type
-        if t in [bytes, int, str]:
-            t = {'type': t}
+        if item in [bytes, int, str]:
+            item = {'type': item}
 
-        if isinstance(t, dict):
-            if t['type'] is bytes:
-                t.setdefault('size', self.bytes_size)
-                return self.from_bytes_to_bytes(**t)
-            if t['type'] is int:
-                pass
-            if t['type'] is str:
-                pass
+        if isinstance(item, dict):
+            t = item.pop('type')
+            item['data'] = self
+            if t is bytes:
+                item.setdefault('size', self.bytes_size)
+                return self.from_bytes_to_bytes(**item)
+            if t is int:
+                item.setdefault('size', self.int_size)
+                item.setdefault('signed', self.int_signed)
+                return self.to_int(**item)
+            if t is str:
+                item.setdefault('size', self.str_size)
+                item.setdefault('encoding', self.str_encoding)
+                return self.to_str(**item)
         else:
-            t = list(t)
-            if t[0] is bytes:
-                pass
-            if t[0] is int:
-                pass
-            if t[0] is str:
-                pass
+            item = list(item)
+            t = item[0]
+            item[0] = self
+            if t is bytes:
+                if len(item) < 2: item.append(self.bytes_size)
+                return self.from_byets_to_bytes(*item)
+            if t is int:
+                if len(item) < 2: item.append(self.int_size)
+                if len(item) < 3: item.append(self.int_signed)
+                return self.to_int(*item)
+            if t is str:
+                if len(item) < 2: item.append(self.str_size)
+                if len(item) < 3: item.append(self.str_encoding)
+                return self.to_str(*item)
         raise ValueError('Unexpected object', t)
 
 
@@ -201,12 +213,11 @@ class NetBuffer(bytearray):
         for index, value in enumerate(item, index):
             super().insert(index, value)
 
-    def pop(self, index=0):
-        """Remove and return an item from the buffer
-
-
-        """
-        pass #TODO
+    def pop(self, item):
+        """Remove and return an item from the buffer"""
+        value, size = self.from_bytes(item)
+        del self[:size]
+        return value
 
 
 class Address(object):
