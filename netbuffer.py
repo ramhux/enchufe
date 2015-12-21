@@ -79,7 +79,7 @@ def to_str(data, size=None, encoding=None):
 class NetBuffer(bytearray):
     """Parse and forge network data"""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, data=b'', **kwargs):
         self.int_size = kwargs.pop('int_size', None)
         self.int_signed = kwargs.pop('int_signed', None)
         self.str_size = kwargs.pop('str_size', 0)
@@ -88,10 +88,14 @@ class NetBuffer(bytearray):
         if len(kwargs) > 0:
             msg = "'{}' is an invalid keyword argument"
             raise TypeError(msg.format(kwargs.popitem()[0]))
-        super().__init__(*args)
+        if isinstance(data, str):
+            data = bytes.fromhex(data)
+        super().__init__(data)
 
     def __repr__(self):
-        return '{}({})'.format(self.__class__.__name__, bytes(self))
+        s = self.hex()
+        s = repr(s) if len(s) > 0 else ''
+        return '{}({})'.format(self.__class__.__name__, s)
 
     __str__ = __repr__
 
