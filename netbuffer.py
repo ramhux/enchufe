@@ -31,6 +31,7 @@ def to_int(data, size=None, signed=None):
     Return the integer value and number of bytes used"""
     size = 1 if size is None else size
     signed = False if signed is None else signed
+    #FIXME b'' returns 0
     value = int.from_bytes(data[:size], 'big', signed=signed)
     return value, size
 
@@ -158,14 +159,14 @@ class NetBuffer(bytearray):
             if t is str:
                 item.setdefault('size', self.str_size)
                 item.setdefault('encoding', self.str_encoding)
-                return self.to_str(**item)
+                return to_str(**item)
         else:
             item = list(item)
             t = item[0]
             item[0] = self
             if t is bytes:
                 if len(item) < 2: item.append(self.bytes_size)
-                return self.from_byets_to_bytes(*item)
+                return self.block(*item)
             if t is int:
                 if len(item) < 2: item.append(self.int_size)
                 if len(item) < 3: item.append(self.int_signed)
@@ -173,7 +174,7 @@ class NetBuffer(bytearray):
             if t is str:
                 if len(item) < 2: item.append(self.str_size)
                 if len(item) < 3: item.append(self.str_encoding)
-                return self.to_str(*item)
+                return to_str(*item)
         raise ValueError('Unexpected object', t)
 
 
