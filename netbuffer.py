@@ -85,6 +85,32 @@ class NetBuffer(bytearray):
     _defaults[int] = {'to': to_int, 'from': from_int, 'size': None, 'signed': None}
     _defaults[str] = {'to': to_str, 'from': from_str, 'size': 0, 'encoding': None}
 
+    ##### Class Methods #####
+    @classmethod
+    def get_global_default(cls, typename, argname):
+        if type(typename) is type:
+            typename = typename.__name__
+        args = cls._defaults_dict(cls, typename)
+        if args is None:
+            raise TypeError("Invalid typename: '{}'".format(typename))
+        if argname in args and argname not in ['to', 'from']:
+            return args[argname]
+        else:
+            raise ValueError("Invalid argname: '{}'".format(argname))
+
+    @classmethod
+    def set_global_default(cls, typename, argname, value):
+        if type(typename) is type:
+            typename = typename.__name__
+        args = cls._defaults_dict(cls, typename)
+        if args is None:
+            raise TypeError("Invalid typename: '{}'".format(typename))
+        if argname in args and argname not in ['to', 'from']:
+            args[argname] = value
+        else:
+            raise ValueError("Invalid argname: '{}'".format(argname))
+    ##### End of Class Methods #####
+
     def __init__(self, data=b'', **kwargs):
         if isinstance(data, str):
             data = bytes.fromhex(data)
