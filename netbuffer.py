@@ -87,28 +87,25 @@ class NetBuffer(bytearray):
 
     ##### Class Methods #####
     @classmethod
-    def get_global_default(cls, typename, argname):
+    def _global_default(cls, typename, argname):
         if type(typename) is type:
             typename = typename.__name__
         args = cls._defaults_dict(cls, typename)
         if args is None:
             raise TypeError("Invalid typename: '{}'".format(typename))
-        if argname in args and argname not in ['to', 'from']:
-            return args[argname]
-        else:
-            raise ValueError("Invalid argname: '{}'".format(argname))
+        if argname not in args or argname in ['to', 'from']:
+            raise ValueError("Invaild argname: '{}'".format(argname))
+        return args
+
+    @classmethod
+    def get_global_default(cls, typename, argname):
+        args = cls._global_default(typename, argname)
+        return args[argname]
 
     @classmethod
     def set_global_default(cls, typename, argname, value):
-        if type(typename) is type:
-            typename = typename.__name__
-        args = cls._defaults_dict(cls, typename)
-        if args is None:
-            raise TypeError("Invalid typename: '{}'".format(typename))
-        if argname in args and argname not in ['to', 'from']:
-            args[argname] = value
-        else:
-            raise ValueError("Invalid argname: '{}'".format(argname))
+        args = cls._global_default(typename, argname)
+        args[argname] = value
     ##### End of Class Methods #####
 
     def __init__(self, data=b'', **kwargs):
