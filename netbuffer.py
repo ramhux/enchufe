@@ -86,8 +86,11 @@ class NetBuffer(bytearray):
     _defaults[str] = {'to': to_str, 'from': from_str, 'size': 0, 'encoding': None}
 
     def __init__(self, data=b'', **kwargs):
-        defaults = copy.deepcopy(self._defaults)
-        self._defaults = defaults
+        if isinstance(data, str):
+            data = bytes.fromhex(data)
+        super().__init__(data)
+
+        self._defaults = copy.deepcopy(self._defaults)
 
         for key in kwargs:
             try:
@@ -95,10 +98,6 @@ class NetBuffer(bytearray):
             except AttributeError:
                 msg = "'{}' is an invalid keyword argument"
                 raise TypeError(msg.format(key))
-
-        if isinstance(data, str):
-            data = bytes.fromhex(data)
-        super().__init__(data)
 
     def __repr__(self):
         s = repr(self.hex()) if len(self) > 0 else ''
