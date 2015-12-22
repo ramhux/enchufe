@@ -35,7 +35,7 @@ def to_int(data, size=None, signed=None):
     value = int.from_bytes(data[:size], 'big', signed=signed)
     return value, size
 
-def from_str(value, size=None, encoding=None):
+def from_str(value, size=0, encoding=None):
     """Convert string to bytes
 
     size = -X --> X bytes used as integer header for size
@@ -58,7 +58,7 @@ def from_str(value, size=None, encoding=None):
             bstr = bstr[:size]
     return bstr
 
-def to_str(data, size=None, encoding=None):
+def to_str(data, size=0, encoding=None):
     if size is None:
         value = _decode(data, encoding)
         size = len(data)
@@ -81,26 +81,25 @@ class NetBuffer(bytearray):
     """Parse and forge network data"""
 
     def __init__(self, data=b'', **kwargs):
-        self.int_size = kwargs.pop('int_size', None)
-        self.int_signed = kwargs.pop('int_signed', None)
-        self.str_size = kwargs.pop('str_size', 0)
-        self.str_encoding = kwargs.pop('str_encoding', None)
-        self.bytes_size = kwargs.pop('bytes_size', 512)
-        if len(kwargs) > 0:
-            msg = "'{}' is an invalid keyword argument"
-            raise TypeError(msg.format(kwargs.popitem()[0]))
+        self._defaults = {}
+        self._defaults[bytes] = {'to': block, 'size': 512}
+        self._defaults[int] = {'to': to_int, 'from': from_int, 'size': None, 'signed': None}
+        self._defaults[str] = {'to': to_str, 'from': from_str, 'size': 0, 'encoding': None}
+
+        #if len(kwargs) > 0:
+        #    msg = "'{}' is an invalid keyword argument"
+        #    raise TypeError(msg.format(kwargs.popitem()[0]))
         if isinstance(data, str):
             data = bytes.fromhex(data)
         super().__init__(data)
 
     def __repr__(self):
-        s = self.hex()
-        s = repr(s) if len(s) > 0 else ''
+        s = repr(self.hex()) if len(self) > 0 else ''
         return '{}({})'.format(self.__class__.__name__, s)
 
     __str__ = __repr__
 
-    def to_bytes(self, item):
+    def _to_bytes(self, item):
         """Return bytes form item
 
         if item is bytes, bytearray or memoryview, return bytes(x)
@@ -108,81 +107,51 @@ class NetBuffer(bytearray):
         if item is dict, use item values as keyword arguments
         if item is a sequence, use item values as positional arguments
         """
-        # x is binary data
+        # item is binary data
         if isinstance(item, (bytes, bytearray, memoryview)):
             return bytes(item)
 
-        # Just a value, use defaults
-        if isinstance(item, (int, str)):
-            item = {'value': item}
-
-        # x is a dict as {'value': x, 'xxx_size': y, ...}
-        if isinstance(item, dict):
-            if isinstance(item['value'], int):
-                item.setdefault('size', self.int_size)
-                item.setdefault('signed', self.int_signed)
-                return from_int(**item)
-            if isinstance(item['value'], str):
-                item.setdefault('size', self.str_size)
-                item.setdefault('encoding', self.str_encoding)
-                return from_str(**item)
-
-        else: # a sequence (positional arguments)
-            item = list(item)
-            if isinstance(item[0], int):
-                if len(item) < 2: item.append(self.int_size)
-                if len(item) < 3: item.append(self.int_signed)
-                return from_int(*item)
-            if isinstance(item[0], str):
-                if len(item) < 2: item.append(self.str_size)
-                if len(item) < 3: item.append(self.str_encoding)
-                return from_str(*item)
+        if type(item) in self._defaults:
+            d = self._defaults[type(item)]
+            func = d['from']
+            return func(item)
 
         # bad luck
-        raise ValueError('Unexpected object', item)
+        raise TypeError('Unexpected object', item)
 
-    def from_bytes(self, item):
+    def _from_bytes(self, item):
         """Return an item and byte size from bytes"""
-        if item in [bytes, int, str]:
+        if item in self._defaults:
             item = {'type': item}
 
-        if isinstance(item, dict):
-            t = item.pop('type')
-            item['data'] = self
-            if t is bytes:
-                item.setdefault('size', self.bytes_size)
-                return block(**item)
-            if t is int:
-                item.setdefault('size', self.int_size)
-                item.setdefault('signed', self.int_signed)
-                return to_int(**item)
-            if t is str:
-                item.setdefault('size', self.str_size)
-                item.setdefault('encoding', self.str_encoding)
-                return to_str(**item)
-        else:
-            item = list(item)
-            t = item[0]
-            item[0] = self
-            if t is bytes:
-                if len(item) < 2: item.append(self.bytes_size)
-                return self.block(*item)
-            if t is int:
-                if len(item) < 2: item.append(self.int_size)
-                if len(item) < 3: item.append(self.int_signed)
-                return to_int(*item)
-            if t is str:
-                if len(item) < 2: item.append(self.str_size)
-                if len(item) < 3: item.append(self.str_encoding)
-                return to_str(*item)
-        raise ValueError('Unexpected object', t)
+        ismapping = False
+        try:
+            _type = item['type']
+            ismapping = True
+        except TypeError:
+            _type = item[0]
 
+        if _type not in self._defaults:
+            raise TypeError('Unexpected Object', item)
+
+        if ismapping: # item is a dict-like object
+            mapping = dict(item)
+            del mapping['type']
+            mapping['data'] = bytes(self)
+            func = self._defaults[_type]['to']
+            return func(**mapping)
+
+        else: # item is a sequence
+            seq = list(item)
+            seq[0] = bytes(self)
+            func = self._defaults[_type]['to']
+            return func(*seq)
 
     def append(self, item):
         """Append a single item to the end of the buffer
 
         The item is used as the argument of to_bytes()"""
-        super().extend(self.to_bytes(item))
+        super().extend(self._to_bytes(item))
 
     def extend(self, item_list):
         """Append all the elements from a sequence to the end
@@ -193,12 +162,12 @@ class NetBuffer(bytearray):
 
     def insert(self, index, item):
         """Insert a single item as bytes before the given index"""
-        item = self.to_bytes(item)
+        item = self._to_bytes(item)
         for index, value in enumerate(item, index):
             super().insert(index, value)
 
     def pop(self, item):
         """Remove and return an item from the buffer"""
-        value, size = self.from_bytes(item)
+        value, size = self._from_bytes(item)
         del self[:size]
         return value
