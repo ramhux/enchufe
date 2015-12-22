@@ -1,6 +1,8 @@
 # netbuffer.py
 # Helper for network data managing
 
+import copy
+
 _encode = lambda s, codec: s.encode() if codec is None else s.encode(codec)
 _decode = lambda d, codec: d.decode() if codec is None else d.decode(codec)
 
@@ -79,16 +81,21 @@ def to_str(data, size=0, encoding=None):
 
 class NetBuffer(bytearray):
     """Parse and forge network data"""
+    _defaults = { bytes: {'to': block, 'size': 512} }
+    _defaults[int] = {'to': to_int, 'from': from_int, 'size': None, 'signed': None}
+    _defaults[str] = {'to': to_str, 'from': from_str, 'size': 0, 'encoding': None}
 
     def __init__(self, data=b'', **kwargs):
-        self._defaults = {}
-        self._defaults[bytes] = {'to': block, 'size': 512}
-        self._defaults[int] = {'to': to_int, 'from': from_int, 'size': None, 'signed': None}
-        self._defaults[str] = {'to': to_str, 'from': from_str, 'size': 0, 'encoding': None}
+        defaults = copy.deepcopy(self._defaults)
+        self._defaults = defaults
 
-        #if len(kwargs) > 0:
-        #    msg = "'{}' is an invalid keyword argument"
-        #    raise TypeError(msg.format(kwargs.popitem()[0]))
+        for key in kwargs:
+            try:
+                setattr(self, key, kwargs[key])
+            except AttributeError:
+                msg = "'{}' is an invalid keyword argument"
+                raise TypeError(msg.format(key))
+
         if isinstance(data, str):
             data = bytes.fromhex(data)
         super().__init__(data)
@@ -98,6 +105,31 @@ class NetBuffer(bytearray):
         return '{}({})'.format(self.__class__.__name__, s)
 
     __str__ = __repr__
+
+    def _defaults_dict(self, typename):
+        for key in self._defaults:
+            if typename == key.__name__:
+                return self._defaults[key]
+
+    def __getattr__(self, name):
+        typename, sep, argname = name.partition('_')
+        if sep == '_' and argname not in ['to', 'from']:
+            args = self._defaults_dict(typename)
+            if argname in args:
+                return args[argname]
+        raise AttributeError("Invalid attribute name: '{}'".format(name))
+
+    def __setattr__(self, name, value):
+        typename, sep, argname = name.partition('_')
+        if sep == '_' and argname not in ['to', 'from']:
+            args = self._defaults_dict(typename)
+            if args is not None and argname in args:
+                args[argname] = value
+                return
+        if hasattr(self, name):
+            object.__setattr__(self, name, value)
+            return
+        raise AttributeError("Invalid attribute name: '{}'".format(name))
 
     def _to_bytes(self, item):
         """Return bytes form item
