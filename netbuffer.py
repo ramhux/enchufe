@@ -2,88 +2,28 @@
 # Helper for network data managing
 
 import copy
+import collections
+import inspect
 
 _encode = lambda s, codec: s.encode() if codec is None else s.encode(codec)
 _decode = lambda d, codec: d.decode() if codec is None else d.decode(codec)
 
-
-def block(data, size=512):
+def _block(data, size=512):
     if size is None:
         size = len(data)
     return bytes(data[:size]), size
 
-def from_int(value, size=None, signed=None):
-    """Convert integer to bytes
+def _signature(func):
+    args = inspect.signature(func)
+    args = collections.OrderedDict(args.parameters.items())
+    for key in args:
+        args[key] = args[key].default
+    return args
 
-    size = 0 or None --> size is calculated automatically
-    size = X --> X bytes size"""
-    size = 0 if size is None else size
-    signed = value < 0 if signed is None else signed
-    if size < 0:
-        raise ValueError('Invalid size', size)
-    if size == 0:
-        size = value.bit_length()
-        size += 1 if signed else 0
-        size = ((size - 1) // 8) + 1
-    return value.to_bytes(size, 'big', signed=signed)
-
-def to_int(data, size=None, signed=None):
-    """Convert bytes to integer
-
-    Return the integer value and number of bytes used"""
-    size = 1 if size is None else size
-    signed = False if signed is None else signed
-    #FIXME b'' returns 0
-    value = int.from_bytes(data[:size], 'big', signed=signed)
-    return value, size
-
-def from_str(value, size=0, encoding=None):
-    """Convert string to bytes
-
-    size = -X --> X bytes used as integer header for size
-    size = 0 --> encoded '\x00' added to the end of the bytes after encoding
-    size = X --> first X bytes only, filled with 0x00 if needed
-    """
-    bstr = _encode(value, encoding)
-    if size is None:
-        return bstr
-    length = len(bstr)
-    if size < 0:
-        size = -size
-        bstr = from_int(length, size) + bstr
-    elif size == 0:
-        bstr = bstr + _encode('\x00', encoding)
-    elif size > 0:
-        if size > length:
-            bsrt += b'\x00' * (size - length)
-        else:
-            bstr = bstr[:size]
-    return bstr
-
-def to_str(data, size=0, encoding=None):
-    if size is None:
-        value = _decode(data, encoding)
-        size = len(data)
-    if size < 0:
-        strsize, size = to_int(data, -size)
-        data = data[size:size+strsize]
-        value = _decode(data, encoding)
-        size += strsize
-    elif size == 0:
-        NUL = _encode('\x00', encoding)
-        head, sep, tail = data.partition(NUL)
-        value = _decode(head, encoding)
-        size = len(head) + len(sep)
-    elif size > 0:
-        data = data[:size]
-        value = _decode(data, encoding)
-    return value, size
 
 class NetBuffer(bytearray):
     """Parse and forge network data"""
-    _defaults = { bytes: {'to': block, 'size': 512} }
-    _defaults[int] = {'to': to_int, 'from': from_int, 'size': None, 'signed': None}
-    _defaults[str] = {'to': to_str, 'from': from_str, 'size': 0, 'encoding': None}
+    _defaults = { bytes: {'to': _block, 'size': 512} }
 
     ##### Class Methods #####
     @classmethod
@@ -106,6 +46,47 @@ class NetBuffer(bytearray):
     def set_global_default(cls, typename, argname, value):
         args = cls._global_default(typename, argname)
         args[argname] = value
+
+    @classmethod
+    def register_class(cls, type_, func_from, func_to):
+        if type(type_) is not type:
+            raise TypeError("Unexpected type object: '{}'".format(type_))
+        if type_ in cls._defaults:
+            raise ValueError("'{}' already registered".format(type_.__name__))
+        empty = inspect.Signature.empty
+        args_from = _signature(func_from)
+        args_to = _signature(func_to)
+        try:
+            name, default = args_from.popitem(last=False)
+            assert name == 'value' and default is empty
+            assert 'to' not in args_from and 'from' not in args_from
+            assert empty not in args_from.values()
+        except AssertionError:
+            raise TypeError("Invalid func_from signature")
+        try:
+            name, default = args_to.popitem(last=False)
+            assert name == 'data' and default is empty
+            assert 'to' not in args_to and 'from' not in args_to
+            assert empty not in args_to.values()
+        except AssertionError:
+            raise TypeError("Invalid func_to signature")
+        common_args = set(args_from) & set(args_to)
+        try:
+            for argname in common_args:
+                assert args_to[argname] == args_from[argname]
+        except AssertionError:
+            raise TypeError("Common arguments must have common defaults")
+        defaults = {'to': func_to, 'from': func_from}
+        defaults.update(args_from)
+        defaults.update(args_to)
+        cls._defaults[type_] = defaults
+
+    @classmethod
+    def drop_class(cls, type_):
+        if type_ in cls._defaults:
+            del cls._defaults[type_]
+        else:
+            raise TypeError("'{}' not registered")
     ##### End of Class Methods #####
 
     def __init__(self, data=b'', **kwargs):
@@ -225,3 +206,90 @@ class NetBuffer(bytearray):
         value, size = self._from_bytes(item)
         del self[:size]
         return value
+
+##### NetBuffer int converter #####
+def from_int(value, size=None, signed=None):
+    """Convert integer to bytes
+
+    size = 0 or None --> size is calculated automatically
+    size = X --> X bytes size"""
+    size = 0 if size is None else size
+    signed = value < 0 if signed is None else signed
+    if size < 0:
+        raise ValueError('Invalid size', size)
+    if size == 0:
+        size = value.bit_length()
+        size += 1 if signed else 0
+        size = ((size - 1) // 8) + 1
+    return value.to_bytes(size, 'big', signed=signed)
+
+def to_int(data, size=None, signed=None):
+    """Convert bytes to integer
+
+    Return the integer value and number of bytes used"""
+    size = 1 if size is None else size
+    signed = False if signed is None else signed
+    #FIXME b'' returns 0
+    value = int.from_bytes(data[:size], 'big', signed=signed)
+    return value, size
+
+NetBuffer.register_class(int, from_int, to_int)
+##### End of NetBuffer int converter #####
+
+##### NetBuffer str converter #####
+def from_str(value, size=0, encoding=None):
+    """Convert string to bytes
+
+    size = -X --> X bytes used as integer header for size
+    size = 0 --> encoded '\x00' added to the end of the bytes after encoding
+    size = X --> first X bytes only, filled with 0x00 if needed
+    """
+    bstr = _encode(value, encoding)
+    if size is None:
+        return bstr
+    length = len(bstr)
+    if size < 0:
+        size = -size
+        bstr = from_int(length, size) + bstr
+    elif size == 0:
+        bstr = bstr + _encode('\x00', encoding)
+    elif size > 0:
+        if size > length:
+            bsrt += b'\x00' * (size - length)
+        else:
+            bstr = bstr[:size]
+    return bstr
+
+def to_str(data, size=0, encoding=None):
+    if size is None:
+        value = _decode(data, encoding)
+        size = len(data)
+    if size < 0:
+        strsize, size = to_int(data, -size)
+        data = data[size:size+strsize]
+        value = _decode(data, encoding)
+        size += strsize
+    elif size == 0:
+        NUL = _encode('\x00', encoding)
+        head, sep, tail = data.partition(NUL)
+        value = _decode(head, encoding)
+        size = len(head) + len(sep)
+    elif size > 0:
+        data = data[:size]
+        value = _decode(data, encoding)
+    return value, size
+
+NetBuffer.register_class(str, from_str, to_str)
+##### End of NetBuffer str converter #####
+
+##### NetBuffer bool converter #####
+def from_bool(value, size=1):
+    value = int(value)
+    return value.to_bytes(size, 'big')
+
+def to_bool(data, size=1):
+    value = int.from_bytes(data[:size], 'big')
+    return bool(value), size
+
+NetBuffer.register_class(bool, from_bool, to_bool)
+##### End of NetBuffer bool converter #####
