@@ -21,6 +21,14 @@ def _signature(func):
         args[key] = args[key].default
     return args
 
+def objectmethod(obj, name, func):
+    def omdecorator(func):
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        return wrapper
+    method = types.MethodType(omdecorator(func), obj)
+    object.__setattr__(obj, name, method)
+
 def defaultsdecorator(func):
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
@@ -104,10 +112,8 @@ class NetBuffer(bytearray):
 
         object.__setattr__(self, '_defaults', copy.deepcopy(self._defaults))
 
-        get_default = types.MethodType(defaultsdecorator(_get_default), self)
-        set_default = types.MethodType(defaultsdecorator(_set_default), self)
-        object.__setattr__(self, 'get_default', get_default)
-        object.__setattr__(self, 'set_default', set_default)
+        objectmethod(self, 'get_default', _get_default)
+        objectmethod(self, 'set_default', _set_default)
 
         for key in kwargs:
             try:
