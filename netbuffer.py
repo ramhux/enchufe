@@ -122,11 +122,6 @@ class NetBuffer(bytearray):
 
     __str__ = __repr__
 
-    def _defaults_dict(self, typename):
-        for key in self._defaults:
-            if typename == key.__name__:
-                return self._defaults[key]
-
     def __getattr__(self, name):
         typename, sep, argname = name.partition('_')
         try:
