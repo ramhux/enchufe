@@ -4,6 +4,7 @@
 import copy
 import collections
 import inspect
+import types
 
 _encode = lambda s, codec: s.encode() if codec is None else s.encode(codec)
 _decode = lambda d, codec: d.decode() if codec is None else d.decode(codec)
@@ -20,32 +21,39 @@ def _signature(func):
         args[key] = args[key].default
     return args
 
+def defaultsdecorator(func):
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+
+def _dict_default(obj, type_, argname):
+    if type(type_) is str:
+        for key in obj._defaults:
+            if key.__name__ == type_:
+                type_ = key
+                break
+    if type_ not in obj._defaults:
+        raise TypeError("Invalid type: '{}'".format(type_))
+    args = obj._defaults[type_]
+    if argname not in args or argname in ['to', 'from']:
+        raise ValueError("Invaild argname: '{}'".format(argname))
+    return args
+
+def _get_default(obj, type_, argname):
+    args = _dict_default(obj, type_, argname)
+    return args[argname]
+
+def _set_default(obj, type_, argname, value):
+    args = _dict_default(obj, type_, argname)
+    args[argname] = value
 
 class NetBuffer(bytearray):
     """Parse and forge network data"""
     _defaults = { bytes: {'to': _block, 'size': 512} }
 
     ##### Class Methods #####
-    @classmethod
-    def _global_default(cls, typename, argname):
-        if type(typename) is type:
-            typename = typename.__name__
-        args = cls._defaults_dict(cls, typename)
-        if args is None:
-            raise TypeError("Invalid typename: '{}'".format(typename))
-        if argname not in args or argname in ['to', 'from']:
-            raise ValueError("Invaild argname: '{}'".format(argname))
-        return args
-
-    @classmethod
-    def get_global_default(cls, typename, argname):
-        args = cls._global_default(typename, argname)
-        return args[argname]
-
-    @classmethod
-    def set_global_default(cls, typename, argname, value):
-        args = cls._global_default(typename, argname)
-        args[argname] = value
+    get_default = classmethod(_get_default)
+    set_default = classmethod(_set_default)
 
     @classmethod
     def register_class(cls, type_, func_from, func_to):
@@ -94,7 +102,12 @@ class NetBuffer(bytearray):
             data = bytes.fromhex(data)
         super().__init__(data)
 
-        self._defaults = copy.deepcopy(self._defaults)
+        object.__setattr__(self, '_defaults', copy.deepcopy(self._defaults))
+
+        get_default = types.MethodType(defaultsdecorator(_get_default), self)
+        set_default = types.MethodType(defaultsdecorator(_set_default), self)
+        object.__setattr__(self, 'get_default', get_default)
+        object.__setattr__(self, 'set_default', set_default)
 
         for key in kwargs:
             try:
@@ -116,22 +129,20 @@ class NetBuffer(bytearray):
 
     def __getattr__(self, name):
         typename, sep, argname = name.partition('_')
-        if sep == '_' and argname not in ['to', 'from']:
-            args = self._defaults_dict(typename)
-            if argname in args:
-                return args[argname]
+        try:
+            r = self.get_default(typename, argname)
+            return r
+        except (TypeError, ValueError):
+            pass
         raise AttributeError("Invalid attribute name: '{}'".format(name))
 
     def __setattr__(self, name, value):
         typename, sep, argname = name.partition('_')
-        if sep == '_' and argname not in ['to', 'from']:
-            args = self._defaults_dict(typename)
-            if args is not None and argname in args:
-                args[argname] = value
-                return
-        if hasattr(self, name):
-            object.__setattr__(self, name, value)
+        try:
+            self.set_default(typename, argname)
             return
+        except (TypeError, ValueError):
+            pass
         raise AttributeError("Invalid attribute name: '{}'".format(name))
 
     def _to_bytes(self, item):
